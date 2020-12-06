@@ -1,0 +1,418 @@
+'wfclose(noerr) colorcode_test.wf1
+'wfopen colorcode_test.wf1
+
+' ##################################################################################################################
+' ##################################################################################################################
+' ###################################################### SETTINGS ###################################################
+' ##################################################################################################################
+' ##################################################################################################################
+
+mode quiet
+
+'--- Set the log mode ---'		
+!debug = 1 'set to 1 if you want the logmsgs to display
+if !debug = 0 then
+	logmode +addin
+else
+	logmode logmsg
+endif
+
+' 1. Detemine if  this was run from the GUI
+!dogui=1
+if @len(@option(1))>0 then
+	!dogui=@hasoption("prompt") 'if this is 0, we are NOT running through the GUI
+endif
+
+' 2. Specifyin settings
+
+if !dogui=1 then
+
+	%cc_tb_name = _this.@name
+
+
+	'2.1 Execute user dialog
+	%cc_rows = "1-"+ @str({%cc_tb_name}.@rows)
+	%cc_cols = "1-"+ @str({%cc_tb_name}.@cols)
+
+	%cc_colors = "green yellow red"
+	%cc_shades_n = @str(@ceiling({%cc_tb_name}.@rows/12),"f.2")
+	
+	!bytype = 1
+
+	!abs = 0
+
+	!metric = 1
+
+	!keep_table = 0
+
+	!result = @uidialog("caption",	"Color code table settings", "edit",%cc_rows,"Enter list of rows to color code", "edit",%cc_cols,"Enter list of columns to color code","edit",%cc_colors,"Enter color pallete","edit",%cc_shades_n,"Enter number of color shades","radio",!bytype,"How do you with to separate values?","""All values in selection together"" ""By row"" ""By column""","check",!abs,"Use absolute value of values","radio",!metric,"On which metric do you want to base the color coding?","Distance Quantiles(ranks)","check",!keep_table,"Do you want to keep table with category information?") 
+
+	if !result = -1 then 'will stop the program unless OK is selected in GUI
+		stop
+	endif
+
+
+	!cc_shades_n = {%cc_shades_n}
+
+	%cc_bytype = @word(""""" rows cols",!bytype)
+
+	if !abs = 1 then
+		%cc_absolute_value = "T"
+	else
+		%cc_absolute_value = "F"
+	endif
+
+
+	if !metric = 1 then
+		%cc_quantiles = "F"
+	else
+		%cc_quantiles= "T"
+	endif
+
+
+	if !keep_table = 1 then
+		%cc_keep_table = "T"
+	else
+		%cc_keep_table = "F"
+	endif
+	
+else
+
+	'2.2 Load settings from options
+	%cc_tb_name = _this.@name
+	%cc_rows =  @equaloption("ROWS")	
+	%cc_cols =  @equaloption("COLS")	
+
+	if @isempty(%cc_rows) then
+		%cc_rows = "1-" + @str({%cc_tb_name}.@rows)
+	endif
+
+	if @isempty(%cc_cols) then
+		%cc_cols = "1-" + @str({%cc_tb_name}.@cols)
+	endif
+
+	%cc_colors = @equaloption("COLORS")	
+	
+	if @isempty(%cc_colors) then
+		%cc_colors = "green yellow red"
+	endif
+
+	%cc_shades_n = @equaloption("SHADES")
+
+	if @isempty(%cc_shades_n) then
+		!cc_shades_n = @floor({%cc_tb_name}.@rows/(3*2))
+	else
+		!cc_shades_n = {%cc_shades_n}
+	endif
+
+	%cc_bytype = @equaloption("BYTYPE")	
+	%cc_absolute_value = @equaloption("ABS")	
+
+	if @upper(%cc_absolute_value)<>"T" then
+		%cc_absolute_value = "F"
+	endif
+
+	%cc_quantiles = @equaloption("QUANTILES")	
+
+	if @isempty(%cc_quantiles) then
+		%cc_quantiles = "f"
+	endif
+
+	%cc_keep_table = @equaloption("KEEP_TABLE")	
+	
+	if @isempty(%cc_keep_table) then
+		%cc_keep_table = "f"
+	endif
+
+
+endif
+
+' ##################################################################################################################
+' ##################################################################################################################
+' #################################################### EXECUTION ###################################################
+' ##################################################################################################################
+' ##################################################################################################################
+
+call colorcode(%cc_tb_name,%cc_rows,%cc_cols,%cc_colors,!cc_shades_n,%cc_bytype,%cc_absolute_value,%cc_quantiles,%cc_keep_table)
+
+' ##################################################################################################################
+' ##################################################################################################################
+' ################################################## SUBROUTINES ##################################################
+' ##################################################################################################################
+' ##################################################################################################################
+
+
+
+' ##################################################################################################################
+
+subroutine colorcode(string %sub_tbname, string %sub_rows, string %sub_cols,string %sub_colors, scalar !sub_shades_n, string %sub_by_type, string %sub_absolute_value, string %sub_quantiles, string %sub_keep_table)
+
+' Program variables
+' 	-	!sub_order - controls whether low values o best or worst; 1=low values best, 2=high values best
+
+' @ Locations
+
+' 1. Implemeting settings
+
+' Category number
+!sub_group_n = @wcount(%sub_colors)
+!sub_category_n = !sub_group_n*!sub_shades_n 
+
+' Colors
+%sub_color_list = ""
+
+for !gr = 1 to !sub_group_n
+	
+	%color_code = "" 	
+
+	%base_color = @word(%sub_colors,!gr)
+
+	if @upper(%base_color)="GREEN" then
+
+		%base_ccode = "@rgb(0,128,0)"
+		
+		!scale_code_min = 78
+		!scale_code_max = 255
+		!scale_code_step = @floor((!scale_code_max-!scale_code_min)/!sub_shades_n+1)		
+
+		for !sc = 1 to !sub_shades_n
+
+			if !gr = 1 then
+				%scale_code =  @str(!scale_code_min+!scale_code_step*(!sc-1))
+			else
+				%scale_code =  @str(!scale_code_max-!scale_code_step*(!sc-1))
+			endif
+
+			%sub_color_list = %sub_color_list + @replace(%base_ccode,"128",%scale_code) + " "
+	
+		next
+	endif
+
+	if @upper(%base_color)="YELLOW" then
+
+		%base_ccode = "@rgb(xxx,255,0)"
+		
+		!scale_code_min = 50
+		!scale_code_max = 255
+		!scale_code_step = @floor((!scale_code_max-!scale_code_min)/!sub_shades_n+1)		
+
+		for !sc = 1 to !sub_shades_n
+			if @upper( @word(%sub_colors,1))="GREEN" then
+				%scale_code =  @str(!scale_code_max-!scale_code_step*(!sc-1))
+			else
+				%scale_code =  @str(!scale_code_min+!scale_code_step*(!sc-1))
+			endif
+
+			%sub_color_list = %sub_color_list + @replace(@replace(%base_ccode,"255",%scale_code),"xxx","255") + " "	
+		next		
+	endif
+
+	if @upper(%base_color)="RED" then
+
+		%base_ccode = "@rgb(255,0,0)"
+		
+		!scale_code_min = 100
+		!scale_code_max = 255
+		!scale_code_step = @floor((!scale_code_max-!scale_code_min)/!sub_shades_n+1)		
+
+		for !sc = 1 to !sub_shades_n
+
+			if !gr = 1 then
+				%scale_code =  @str(!scale_code_min+!scale_code_step*(!sc-1))
+			else
+				%scale_code =  @str(!scale_code_max-!scale_code_step*(!sc-1))
+			endif
+
+			%sub_color_list = %sub_color_list + @replace(%base_ccode,"255",%scale_code) + " "
+	
+		next
+	endif
+next
+
+' Rows and columns
+if @instr(@upper(%sub_rows),"-")>0 then
+	%sub_row_list = ""
+	
+	!row_first = @val(@left(%sub_rows,@instr(%sub_rows,"-")-1))
+	!row_last = @val(@mid(%sub_rows,@instr(%sub_rows,"-")+1))
+ 
+	for !sub_tr = !row_first to !row_last
+		%sub_row_list = %sub_row_list + @str(!sub_tr) + " "
+	next
+else
+	%sub_row_list = %sub_rows
+endif
+
+if @instr(@upper(%sub_cols),"-")>0 then
+	%sub_col_list = ""
+	
+	!row_first = @val(@left(%sub_cols,@instr(%sub_cols,"-")-1))
+	!row_last = @val(@mid(%sub_cols,@instr(%sub_cols,"-")+1))
+ 
+	for !sub_tr = !row_first to !row_last
+		%sub_col_list = %sub_col_list + @str(!sub_tr) + " "
+	next
+else
+	%sub_col_list = %sub_cols
+endif
+
+' By-type
+!bytype = 0
+
+if @upper(%sub_by_type)="ROWS" then
+	!bytype = 1
+endif
+
+if @upper(%sub_by_type)="COLS" then
+	!bytype = 2
+endif
+
+' 2. Color coding
+
+if !bytype=0 then
+	call colorcode_execution(%sub_tbname, %sub_row_list,%sub_col_list, %sub_absolute_value,%sub_quantiles, %sub_keep_table)
+endif
+
+if !bytype=1 then
+	for %sub_row {%sub_row_list}
+		call colorcode_execution(%sub_tbname, %sub_row,%sub_col_list, %sub_absolute_value,%sub_quantiles, %sub_keep_table)
+	next
+endif
+
+if !bytype=2 then
+	for %sub_col {%sub_col_list}
+		call colorcode_execution(%sub_tbname, %sub_row_list,%sub_col, %sub_absolute_value,%sub_quantiles, %sub_keep_table)
+	next
+endif
+
+'delete(noerr)  tb_category_info v_all_values
+
+endsub
+
+' ##################################################################################################################
+
+
+
+
+' ##################################################################################################################
+
+subroutine colorcode_execution(string %sub_tbname, string %sub_rlist,string %sub_clist, string %sub_absolute_value, string %sub_quantiles, string %sub_keep_table)
+
+' 1. Creating vector of all values
+!values_n = @wcount(%sub_rlist)*@wcount(%sub_clist)
+vector(!values_n) v_all_values = na
+
+!v = 0
+for %sub_tr {%sub_rlist}
+	for %sub_tc {%sub_clist}
+
+		if @upper(%sub_absolute_value)="T" then
+			!value = @abs(@val({%sub_tbname}({%sub_tr},{%sub_tc})))
+		else
+			!value = @val({%sub_tbname}({%sub_tr},{%sub_tc}))
+		endif
+
+		if @isna(!value)=0 then	
+			!v = !v + 1 
+			v_all_values(!v) = !value
+		endif
+	next
+next
+
+' 2. Creating table with borders and colors
+
+'Creating table
+delete(noerr) tb_category_info
+table tb_category_info
+
+tb_category_info(1,1) = "Category #"
+tb_category_info(1,2) = "Color"
+tb_category_info(1,3) = "Lower border"
+tb_category_info(1,4) = "Upper border"
+
+' Calculating borders
+if @upper(%sub_quantiles)="T" then
+
+	tb_category_info(2,1) = "1"
+	tb_category_info(2,2) = @word(%sub_color_list,1)
+	tb_category_info(2,3) = @min(v_all_values)-0.0001
+	tb_category_info(2,4) = @quantile(v_all_values,1/!sub_category_n)
+	
+	for !cg = 2 to !sub_category_n-1
+		tb_category_info(1+!cg,1) = @str(!cg,"f.0")
+		tb_category_info(1+!cg,2) = @word(%sub_color_list,!cg)
+		tb_category_info(1+!cg,3) = @quantile(v_all_values,(!cg-1)/!sub_category_n)
+		tb_category_info(1+!cg,4) = @quantile(v_all_values,(!cg)/!sub_category_n)
+	next
+	
+	tb_category_info(1+!sub_category_n,1) = @str(!sub_category_n,"f.0")
+	tb_category_info(1+!sub_category_n,2) = @word(%sub_color_list,!sub_category_n)
+	tb_category_info(1+!sub_category_n,3) = tb_category_info(1+!sub_category_n-1,4)
+	tb_category_info(1+!sub_category_n,4) = @max(v_all_values)+0.0001
+
+else
+
+	!category_min = @min(v_all_values)
+	!category_width = (@max(v_all_values)-@min(v_all_values))/!sub_category_n
+
+	tb_category_info(2,1) = "1"
+	tb_category_info(2,2) = @word(%sub_color_list,1)
+	tb_category_info(2,3) = @min(v_all_values)-0.0001
+	tb_category_info(2,4) = @min(v_all_values)+!category_width
+	
+	for !cg = 2 to !sub_category_n-1
+		tb_category_info(1+!cg,1) = @str(!cg,"f.0")
+		tb_category_info(1+!cg,2) = @word(%sub_color_list,!cg)
+		tb_category_info(1+!cg,3) = !category_min+!category_width*(!cg-1)
+		tb_category_info(1+!cg,4) = !category_min+!category_width*(!cg)
+	next
+	
+	tb_category_info(1+!sub_category_n,1) = @str(!sub_category_n,"f.0")
+	tb_category_info(1+!sub_category_n,2) = @word(%sub_color_list,!sub_category_n)
+	tb_category_info(1+!sub_category_n,3) = tb_category_info(1+!sub_category_n-1,4)
+	tb_category_info(1+!sub_category_n,4) = @max(v_all_values)+0.0001
+
+
+endif
+
+for !cg = 1 to !sub_category_n-1
+	if @instr(tb_category_info(1+!cg,4),"NA")>0 then
+		tb_category_info(1+!cg,4) = tb_category_info(1+!cg,3)
+		tb_category_info(1+!cg+1,3) = tb_category_info(1+!cg,4)
+	endif
+next
+
+' 3. Color-coding
+for %sub_tr {%sub_rlist}
+	for %sub_tc {%sub_clist}
+
+		if @upper(%sub_absolute_value)="T" then
+			!value = @abs(@val({%sub_tbname}({%sub_tr},{%sub_tc})))
+		else
+			!value = @val({%sub_tbname}({%sub_tr},{%sub_tc}))
+		endif
+
+		for !cg = 1 to !sub_category_n
+			%lb = tb_category_info(1+!cg,3)
+			%ub = tb_category_info(1+!cg,4)
+			%color = tb_category_info(1+!cg,2)
+
+			if !value>{%lb} and !value<={%ub} then
+				{%sub_tbname}.setfillcolor({%sub_tr},{%sub_tc}) {%color}
+				exitloop
+			endif
+		next
+	next
+next
+
+delete(noerr) v_all_values
+
+if @upper(%sub_keep_table)="F" then
+	delete(noerr) tb_category_info
+endif
+
+endsub
+
+' ##################################################################################################################
+
+
