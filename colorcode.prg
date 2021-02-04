@@ -111,6 +111,8 @@ else
 
 	%cc_quantiles = @equaloption("QUANTILES")	
 
+	%cc_summary_statistics = @equaloption("STATISTICS")	
+
 	if @isempty(%cc_quantiles) then
 		%cc_quantiles = "f"
 	endif
@@ -130,7 +132,7 @@ endif
 ' ##################################################################################################################
 ' ##################################################################################################################
 
-call colorcode(%cc_tb_name,%cc_rows,%cc_cols,%cc_colors,!cc_shades_n,%cc_bytype,%cc_absolute_value,%cc_quantiles,%cc_keep_table)
+call colorcode(%cc_tb_name,%cc_rows,%cc_cols,%cc_colors,!cc_shades_n,%cc_bytype,%cc_absolute_value,%cc_summary_statistics, %cc_quantiles,%cc_keep_table)
 
 ' ##################################################################################################################
 ' ##################################################################################################################
@@ -142,7 +144,7 @@ call colorcode(%cc_tb_name,%cc_rows,%cc_cols,%cc_colors,!cc_shades_n,%cc_bytype,
 
 ' ##################################################################################################################
 
-subroutine colorcode(string %sub_tbname, string %sub_rows, string %sub_cols,string %sub_colors, scalar !sub_shades_n, string %sub_by_type, string %sub_absolute_value, string %sub_quantiles, string %sub_keep_table)
+subroutine colorcode(string %sub_tbname, string %sub_rows, string %sub_cols,string %sub_colors, scalar !sub_shades_n, string %sub_by_type, string %sub_absolute_value, string %sub_summary_statistics, string %sub_quantiles, string %sub_keep_table)
 
 ' Program variables
 ' 	-	!sub_order - controls whether low values o best or worst; 1=low values best, 2=high values best
@@ -170,7 +172,7 @@ for !gr = 1 to !sub_group_n
 		
 		!scale_code_min = 78
 		!scale_code_max = 255
-		!scale_code_step = @floor((!scale_code_max-!scale_code_min)/!sub_shades_n+1)		
+		!scale_code_step = @floor((!scale_code_max-!scale_code_min)/(!sub_shades_n+1))
 
 		for !sc = 1 to !sub_shades_n
 
@@ -191,7 +193,7 @@ for !gr = 1 to !sub_group_n
 		
 		!scale_code_min = 50
 		!scale_code_max = 255
-		!scale_code_step = @floor((!scale_code_max-!scale_code_min)/!sub_shades_n+1)		
+		!scale_code_step = @floor((!scale_code_max-!scale_code_min)/(!sub_shades_n+1))		
 
 		for !sc = 1 to !sub_shades_n
 			if @upper( @word(%sub_colors,1))="GREEN" then
@@ -210,7 +212,7 @@ for !gr = 1 to !sub_group_n
 		
 		!scale_code_min = 100
 		!scale_code_max = 255
-		!scale_code_step = @floor((!scale_code_max-!scale_code_min)/!sub_shades_n+1)		
+		!scale_code_step = @floor((!scale_code_max-!scale_code_min)/(!sub_shades_n+1))		
 
 		for !sc = 1 to !sub_shades_n
 
@@ -265,20 +267,21 @@ if @upper(%sub_by_type)="COLS" then
 endif
 
 ' 2. Color coding
+!sumstat_head_created = 0
 
 if !bytype=0 then
-	call colorcode_execution(%sub_tbname, %sub_row_list,%sub_col_list, %sub_absolute_value,%sub_quantiles, %sub_keep_table)
+	call colorcode_execution(%sub_tbname, %sub_row_list,%sub_col_list, %sub_absolute_value,%sub_quantiles, %sub_summary_statistics, %sub_keep_table)
 endif
 
 if !bytype=1 then
 	for %sub_row {%sub_row_list}
-		call colorcode_execution(%sub_tbname, %sub_row,%sub_col_list, %sub_absolute_value,%sub_quantiles, %sub_keep_table)
+		call colorcode_execution(%sub_tbname, %sub_row,%sub_col_list, %sub_absolute_value,%sub_quantiles, %sub_summary_statistics, %sub_keep_table)
 	next
 endif
 
 if !bytype=2 then
 	for %sub_col {%sub_col_list}
-		call colorcode_execution(%sub_tbname, %sub_row_list,%sub_col, %sub_absolute_value,%sub_quantiles, %sub_keep_table)
+		call colorcode_execution(%sub_tbname, %sub_row_list,%sub_col, %sub_absolute_value,%sub_quantiles, %sub_summary_statistics, %sub_keep_table)
 	next
 endif
 
@@ -293,7 +296,7 @@ endsub
 
 ' ##################################################################################################################
 
-subroutine colorcode_execution(string %sub_tbname, string %sub_rlist,string %sub_clist, string %sub_absolute_value, string %sub_quantiles, string %sub_keep_table)
+subroutine colorcode_execution(string %sub_tbname, string %sub_rlist,string %sub_clist, string %sub_absolute_value, string %sub_quantiles, string %sub_summary_statistics, string %sub_keep_table)
 
 ' 1. Creating vector of all values
 !values_n = @wcount(%sub_rlist)*@wcount(%sub_clist)
@@ -401,6 +404,107 @@ for %sub_tr {%sub_rlist}
 		next
 	next
 next
+
+' 4. Adding summary_statistics
+
+if @wcount(%sub_summary_statistics)>0 then
+
+
+	if !bytype = 2 and !sumstat_head_created = 0 then
+
+		!sumstat_head_created = 1
+
+		!sub_last_row = {%sub_tbname}.@rows
+		!sub_last_col = {%sub_tbname}.@cols
+		
+		!sub_next_row = !sub_last_row+1
+		{%sub_tbname}.setlines(!sub_next_row,1,!sub_next_row,!sub_last_col) +d
+
+		!sub_next_row = !sub_next_row+1
+		{%sub_tbname}.setmerge(!sub_next_row,1,!sub_next_row,!sub_last_col) 
+		{%sub_tbname}.setfont(!sub_next_row,1,!sub_next_row,!sub_last_col) +b
+		{%sub_tbname}.setlines(!sub_next_row,1,!sub_next_row,!sub_last_col) +b
+		{%sub_tbname}(!sub_next_row,1) = "Summary statistics"	
+
+		!sub_summary_end = !sub_last_row+2+@wcount(%sub_summary_statistics)+1
+		
+		if @instr(@upper(%sub_summary_statistics),"QUARTILES") then
+			!sub_summary_end = 	!sub_summary_end +1
+		endif
+
+		{%sub_tbname}.setlines(!sub_summary_end,1,!sub_summary_end,!sub_last_col) +d
+	
+	endif		
+
+	!sub_next_row = !sub_last_row+2
+	
+	for %sub_sumstat {%sub_summary_statistics}
+
+		if @upper(%sub_sumstat)="MEAN" then 
+	
+			!sub_next_row = !sub_next_row+1
+	
+			!sub_mean = @mean(v_all_values)
+			{%sub_tbname}(!sub_next_row,1) = "Mean"
+			{%sub_tbname}.setfont(!sub_next_row,1) +b
+			{%sub_tbname}(!sub_next_row,{%sub_clist}) = @str(!sub_mean,"f.2")
+		endif
+	
+		if @upper(%sub_sumstat)="STDEV" then 
+	
+			!sub_next_row = !sub_next_row+1
+	
+			!sub_stdev = @stdev(v_all_values)
+			{%sub_tbname}(!sub_next_row,1) = "Std. Deviation"
+			{%sub_tbname}.setfont(!sub_next_row,1) +b
+			{%sub_tbname}(!sub_next_row,{%sub_clist}) = @str(!sub_stdev,"f.2")
+		endif
+
+		if @upper(%sub_sumstat)="MIN" then 
+	
+			!sub_next_row = !sub_next_row+1
+	
+			!sub_min = @min(v_all_values)
+			{%sub_tbname}(!sub_next_row,1) = "Minimum"
+			{%sub_tbname}.setfont(!sub_next_row,1) +b
+			{%sub_tbname}(!sub_next_row,{%sub_clist}) = @str(!sub_min,"f.2")
+		endif
+
+		if @upper(%sub_sumstat)="MAX" then 
+	
+			!sub_next_row = !sub_next_row+1
+	
+			!sub_max = @max(v_all_values)
+			{%sub_tbname}(!sub_next_row,1) = "Maximum"
+			{%sub_tbname}.setfont(!sub_next_row,1) +b
+			{%sub_tbname}(!sub_next_row,{%sub_clist}) = @str(!sub_max,"f.2")
+		endif
+
+
+		if @upper(%sub_sumstat)="QUARTILES" then 
+	
+			!sub_next_row = !sub_next_row+1
+	
+			!sub_quartile = @quantile(v_all_values,0.25)
+			{%sub_tbname}(!sub_next_row,1) = "1st quartile"
+			{%sub_tbname}.setfont(!sub_next_row,1) +b
+			{%sub_tbname}(!sub_next_row,{%sub_clist}) = @str(!sub_quartile,"f.2")
+
+
+			!sub_next_row = !sub_next_row+1
+	
+			!sub_quartile = @quantile(v_all_values,0.75)
+			{%sub_tbname}(!sub_next_row,1) = "3rd quartile"
+			{%sub_tbname}.setfont(!sub_next_row,1) +b
+			{%sub_tbname}(!sub_next_row,{%sub_clist}) = @str(!sub_quartile,"f.2")
+		endif
+
+	next
+
+
+'{%sub_tbname}.display
+'stop
+endif
 
 delete(noerr) v_all_values
 
