@@ -4,6 +4,8 @@
 ' ##################################################################################################################
 ' ##################################################################################################################
 
+include .\subroutines\colorcode_subroutines.prg 
+
 ' 1. Detemine if  this was run from the GUI
 !dogui=1
 if @len(@option(1))>0 then
@@ -123,4 +125,5 @@ endif
 ' ##################################################################################################################
 
 call colorcode(%cc_tb_name,%cc_rows,%cc_cols,%cc_colors,!cc_shades_n,%cc_bytype,%cc_absolute_value,%cc_summary_statistics, %cc_quantiles,%cc_keep_table)
+
 
