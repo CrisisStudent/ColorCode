@@ -3,6 +3,6 @@
 <path>colorcode.prg</path>
 <version>1.0.1</version>
 <description>Sets colors of cells in table according to values in the cells relative to the distribution of values.</description>
-<link>https://github.com/CrisisStudent/ColorCode/Package/colorcode.aipz</link>
+<link>https://github.com/CrisisStudent/ColorCode/Package/ColorCode.aipz</link>
 <pubDate>3 Apr 2021</pubDate>
 </item>
